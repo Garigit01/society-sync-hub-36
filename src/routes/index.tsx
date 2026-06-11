@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Building2, ShieldCheck, Sparkles } from "lucide-react";
 import { useAuth, ADMIN_EMAIL } from "@/lib/society/auth";
+import { useT } from "@/lib/society/i18n";
 import { db } from "@/lib/society/db";
 
 export const Route = createFileRoute("/")({
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/")({
 
 function LoginPage() {
   const { user, signIn } = useAuth();
+  const { lang, setLang, t } = useT();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -67,15 +69,20 @@ function LoginPage() {
 
       <div className="flex items-center justify-center p-6">
         <Card className="w-full max-w-md p-8 shadow-[var(--shadow-elevated)] border-0">
+          <div className="flex justify-end mb-2">
+            <Button variant="outline" size="sm" onClick={() => setLang(lang === "en" ? "hi" : "en")}>
+              {lang === "en" ? "हिंदी" : "English"}
+            </Button>
+          </div>
           <div className="space-y-2 mb-6">
-            <h2 className="text-2xl font-semibold">Welcome back</h2>
+            <h2 className="text-2xl font-semibold">{t("welcomeBack")}</h2>
             <p className="text-sm text-muted-foreground">
               Simulated Google sign-in. Admin email: <code className="text-foreground">{ADMIN_EMAIL}</code>
             </p>
           </div>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("email")}</Label>
               <Input
                 id="email"
                 placeholder="you@gmail.com"
@@ -84,7 +91,7 @@ function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="name">Display name</Label>
+              <Label htmlFor="name">{t("displayName")}</Label>
               <Input
                 id="name"
                 placeholder="(optional)"
@@ -98,19 +105,19 @@ function LoginPage() {
               onClick={() => handleGoogle(false)}
               style={{ background: "var(--gradient-primary)" }}
             >
-              <GoogleIcon /> Continue with Google
+              <GoogleIcon /> {t("signInGoogle")}
             </Button>
             <div className="relative py-2">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">demo shortcuts</span>
+                <span className="bg-card px-2 text-muted-foreground">{t("demoShortcuts")}</span>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" onClick={() => handleGoogle(true)}>
-                Sign in as Admin
+                {t("signInAdmin")}
               </Button>
               <Button
                 variant="outline"
@@ -120,7 +127,7 @@ function LoginPage() {
                   setTimeout(() => signIn("priya@example.com", "Priya Sharma"), 0);
                 }}
               >
-                Sign in as Resident
+                {t("signInResident")}
               </Button>
             </div>
           </div>

@@ -141,7 +141,11 @@ function DutyCard({ email }: { email: string }) {
 }
 
 function ComplaintBox({ email }: { email: string }) {
-  const complaints = useDB((s) => s.complaints.filter((c) => c.email === email));
+  const allComplaints = useDB((s) => s.complaints);
+  const complaints = useMemo(
+    () => allComplaints.filter((c) => c.email === email),
+    [allComplaints, email],
+  );
   const [text, setText] = useState("");
 
   const submit = () => {
@@ -205,7 +209,11 @@ function ComplaintBox({ email }: { email: string }) {
 
 function TransparencyCard() {
   const month = currentMonth();
-  const expenses = useDB((s) => s.expenses.filter((e) => e.date.startsWith(month)));
+  const allExpenses = useDB((s) => s.expenses);
+  const expenses = useMemo(
+    () => allExpenses.filter((e) => e.date.startsWith(month)),
+    [allExpenses, month],
+  );
   const total = useMemo(() => expenses.reduce((s, e) => s + e.amount, 0), [expenses]);
   const byCategory = useMemo(() => {
     const map = new Map<string, number>();

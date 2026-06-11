@@ -2,10 +2,12 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Building2, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/society/auth";
+import { useT } from "@/lib/society/i18n";
 import type { ReactNode } from "react";
 
 export function Shell({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   const { user, signOut } = useAuth();
+  const { lang, setLang, t } = useT();
   const navigate = useNavigate();
 
   return (
@@ -19,9 +21,17 @@ export function Shell({ title, subtitle, children }: { title: string; subtitle?:
             >
               <Building2 className="size-4" />
             </span>
-            Harmony Heights
+            {t("appName")}
           </Link>
           <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLang(lang === "en" ? "hi" : "en")}
+              aria-label={t("language")}
+            >
+              {lang === "en" ? "हिं" : "EN"}
+            </Button>
             <div className="text-right text-sm hidden sm:block">
               <div className="font-medium">{user?.name}</div>
               <div className="text-xs text-muted-foreground capitalize">{user?.role}</div>
@@ -34,7 +44,7 @@ export function Shell({ title, subtitle, children }: { title: string; subtitle?:
                 navigate({ to: "/" });
               }}
             >
-              <LogOut className="size-4 mr-1" /> Sign out
+              <LogOut className="size-4 mr-1" /> {t("signOut")}
             </Button>
           </div>
         </div>
