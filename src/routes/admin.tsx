@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/society/auth";
 import { db, ensureMaintenanceForMonth, useDB, currentMonth, uid, type Profile } from "@/lib/society/db";
-import { Download, MessageCircle, Wallet, Wrench, Bell, Send, IndianRupee } from "lucide-react";
+import { Download, MessageCircle, Wallet, Bell, Send, IndianRupee } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin")({
