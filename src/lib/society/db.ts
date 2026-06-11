@@ -156,7 +156,9 @@ export const db = {
   },
   subscribe: (l: () => void) => {
     listeners.add(l);
-    return () => listeners.delete(l);
+    return () => {
+      listeners.delete(l);
+    };
   },
 };
 
