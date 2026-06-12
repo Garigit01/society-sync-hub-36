@@ -33,8 +33,7 @@ export function Shell({ title, subtitle, children }: { title: string; subtitle?:
               {lang === "en" ? "हिं" : "EN"}
             </Button>
             <div className="text-right text-sm hidden sm:block">
-              <div className="font-medium">{user?.name}</div>
-              <div className="text-xs text-muted-foreground capitalize">{user?.role}</div>
+              <div className="font-medium">{user?.email}</div>
             </div>
             <Button
               variant="ghost"
