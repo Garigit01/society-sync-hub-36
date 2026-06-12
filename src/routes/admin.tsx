@@ -191,7 +191,7 @@ function ComplaintsTab() {
     const list = (data ?? []) as Complaint[];
     const ids = [...new Set(list.map((c) => c.user_id))];
     const { data: ps } = await supabase.from("profiles").select("*").in("id", ids);
-    const map = new Map((ps ?? []).map((p: Profile) => [p.id, p]));
+    const map = new Map((ps ?? []).map((p) => [p.id, p as unknown as Profile] as const));
     setComplaints(list.map((c) => ({ ...c, profile: map.get(c.user_id) })));
   }, []);
   useEffect(() => { load(); }, [load]);
