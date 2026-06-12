@@ -80,14 +80,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "Society hub" },
+      { name: "description", content: "Society Hub is a web application for managing society operations and resident communication." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "Society hub" },
+      { property: "og:description", content: "Society Hub is a web application for managing society operations and resident communication." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Society hub" },
+      { name: "twitter:description", content: "Society Hub is a web application for managing society operations and resident communication." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3f261df7-41be-48ce-8ffd-0c49cd11c677/id-preview-4266632e--5e14c634-12c9-4c74-8324-e1717128a195.lovable.app-1781245332298.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3f261df7-41be-48ce-8ffd-0c49cd11c677/id-preview-4266632e--5e14c634-12c9-4c74-8324-e1717128a195.lovable.app-1781245332298.png" },
     ],
     links: [
       {
