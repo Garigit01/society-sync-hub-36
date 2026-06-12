@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/lib/society/auth";
-import { db } from "@/lib/society/db";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/profile-setup")({
@@ -15,7 +15,7 @@ export const Route = createFileRoute("/profile-setup")({
 });
 
 function ProfileSetup() {
-  const { user } = useAuth();
+  const { user, role, loading } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({
     fullName: "",
@@ -25,16 +25,17 @@ function ProfileSetup() {
     altContact: "",
     vehicle: "",
   });
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (loading) return;
     if (!user) navigate({ to: "/" });
-    else if (user.role === "admin") navigate({ to: "/admin" });
-    else if (db.get().profiles[user.email]) navigate({ to: "/resident" });
-  }, [user, navigate]);
+    else if (role === "admin") navigate({ to: "/admin" });
+  }, [user, role, loading, navigate]);
 
   const phoneOk = (p: string) => /^\+\d{1,3}\d{6,14}$/.test(p.replace(/\s/g, ""));
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     if (!form.fullName.trim()) return toast.error("Full name is required");
@@ -42,22 +43,19 @@ function ProfileSetup() {
     if (!/^[A-Za-z]-?\d{2,4}$/.test(form.flat.trim())) return toast.error("Flat format e.g. A-402");
     if (!phoneOk(form.altContact)) return toast.error("Alternative contact must include country code");
 
-    db.set((s) => ({
-      ...s,
-      profiles: {
-        ...s.profiles,
-        [user.email]: {
-          email: user.email,
-          fullName: form.fullName.trim(),
-          occupancy: form.occupancy,
-          whatsapp: form.whatsapp.replace(/\s/g, ""),
-          flat: form.flat.toUpperCase(),
-          altContact: form.altContact.replace(/\s/g, ""),
-          vehicle: form.vehicle.trim() || undefined,
-          createdAt: Date.now(),
-        },
-      },
-    }));
+    setBusy(true);
+    const { error } = await supabase.from("profiles").upsert({
+      id: user.id,
+      email: user.email!,
+      full_name: form.fullName.trim(),
+      occupancy: form.occupancy,
+      whatsapp: form.whatsapp.replace(/\s/g, ""),
+      flat: form.flat.toUpperCase(),
+      alt_contact: form.altContact.replace(/\s/g, ""),
+      vehicle: form.vehicle.trim() || null,
+    });
+    setBusy(false);
+    if (error) return toast.error(error.message);
     toast.success("Profile created");
     navigate({ to: "/resident" });
   };
@@ -82,10 +80,10 @@ function ProfileSetup() {
               </SelectContent>
             </Select>
           </Field>
-          <Field label="WhatsApp Number * (with country code)">
+          <Field label="WhatsApp (with country code) *">
             <Input placeholder="+919876543210" value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} />
           </Field>
-          <Field label="Flat Number + Wing *">
+          <Field label="Flat + Wing *">
             <Input placeholder="A-402" value={form.flat} onChange={(e) => setForm({ ...form, flat: e.target.value })} />
           </Field>
           <Field label="Alternative Contact *">
@@ -95,7 +93,7 @@ function ProfileSetup() {
             <Input value={form.vehicle} onChange={(e) => setForm({ ...form, vehicle: e.target.value })} />
           </Field>
           <div className="sm:col-span-2">
-            <Button type="submit" size="lg" className="w-full" style={{ background: "var(--gradient-primary)" }}>
+            <Button type="submit" size="lg" className="w-full" disabled={busy} style={{ background: "var(--gradient-primary)" }}>
               Save & continue
             </Button>
           </div>

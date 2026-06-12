@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Building2, ShieldCheck, Sparkles } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Building2, ShieldCheck, Sparkles, Loader2 } from "lucide-react";
 import { useAuth, ADMIN_EMAIL } from "@/lib/society/auth";
 import { useT } from "@/lib/society/i18n";
-import { db } from "@/lib/society/db";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -20,27 +22,21 @@ export const Route = createFileRoute("/")({
 });
 
 function LoginPage() {
-  const { user, signIn } = useAuth();
+  const { user, role, loading } = useAuth();
   const { lang, setLang, t } = useT();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
 
   useEffect(() => {
-    if (!user) return;
-    if (user.role === "admin") {
+    if (loading || !user) return;
+    if (role === "admin") {
       navigate({ to: "/admin" });
-    } else {
-      const hasProfile = !!db.get().profiles[user.email];
-      navigate({ to: hasProfile ? "/resident" : "/profile-setup" });
+      return;
     }
-  }, [user, navigate]);
-
-  const handleGoogle = (asAdmin: boolean) => {
-    const e = asAdmin ? ADMIN_EMAIL : email.trim().toLowerCase();
-    if (!e || !e.includes("@")) return;
-    signIn(e, asAdmin ? "Society Admin" : name || undefined);
-  };
+    // Resident: check profile
+    supabase.from("profiles").select("id").eq("id", user.id).maybeSingle().then(({ data }) => {
+      navigate({ to: data ? "/resident" : "/profile-setup" });
+    });
+  }, [user, role, loading, navigate]);
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
@@ -60,7 +56,7 @@ function LoginPage() {
           </p>
           <div className="grid gap-3 text-sm">
             <Feature icon={<ShieldCheck className="size-4" />} text="Role-based admin & resident access" />
-            <Feature icon={<Sparkles className="size-4" />} text="WhatsApp reminders in one click" />
+            <Feature icon={<Sparkles className="size-4" />} text="Email + OTP login, real database" />
             <Feature icon={<Building2 className="size-4" />} text="Full fund utilization transparency" />
           </div>
         </div>
@@ -77,63 +73,127 @@ function LoginPage() {
           <div className="space-y-2 mb-6">
             <h2 className="text-2xl font-semibold">{t("welcomeBack")}</h2>
             <p className="text-sm text-muted-foreground">
-              Simulated Google sign-in. Admin email: <code className="text-foreground">{ADMIN_EMAIL}</code>
+              Admin: <code className="text-foreground">{ADMIN_EMAIL}</code>
             </p>
           </div>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">{t("email")}</Label>
-              <Input
-                id="email"
-                placeholder="you@gmail.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="name">{t("displayName")}</Label>
-              <Input
-                id="name"
-                placeholder="(optional)"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <Button
-              className="w-full"
-              size="lg"
-              onClick={() => handleGoogle(false)}
-              style={{ background: "var(--gradient-primary)" }}
-            >
-              <GoogleIcon /> {t("signInGoogle")}
-            </Button>
-            <div className="relative py-2">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">{t("demoShortcuts")}</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" onClick={() => handleGoogle(true)}>
-                {t("signInAdmin")}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setEmail("priya@example.com");
-                  setName("Priya Sharma");
-                  setTimeout(() => signIn("priya@example.com", "Priya Sharma"), 0);
-                }}
-              >
-                {t("signInResident")}
-              </Button>
-            </div>
-          </div>
+
+          <Tabs defaultValue="password">
+            <TabsList className="grid grid-cols-2 w-full mb-4">
+              <TabsTrigger value="password">Email + Password</TabsTrigger>
+              <TabsTrigger value="otp">Magic Code (OTP)</TabsTrigger>
+            </TabsList>
+            <TabsContent value="password"><PasswordForm /></TabsContent>
+            <TabsContent value="otp"><OtpForm /></TabsContent>
+          </Tabs>
         </Card>
       </div>
     </div>
+  );
+}
+
+function PasswordForm() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.includes("@") || password.length < 6) {
+      toast.error("Valid email & password (6+ chars) required");
+      return;
+    }
+    setBusy(true);
+    const fn = mode === "signin"
+      ? supabase.auth.signInWithPassword({ email, password })
+      : supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/` } });
+    const { error } = await fn;
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success(mode === "signin" ? "Signed in" : "Account created");
+  };
+
+  return (
+    <form className="space-y-4" onSubmit={submit}>
+      <div className="space-y-2">
+        <Label htmlFor="pw-email">Email</Label>
+        <Input id="pw-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="pw-pass">Password</Label>
+        <Input id="pw-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••" />
+      </div>
+      <Button type="submit" className="w-full" size="lg" disabled={busy} style={{ background: "var(--gradient-primary)" }}>
+        {busy && <Loader2 className="size-4 mr-2 animate-spin" />}
+        {mode === "signin" ? "Sign in" : "Create account"}
+      </Button>
+      <button
+        type="button"
+        onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+        className="text-sm text-muted-foreground hover:text-foreground w-full text-center"
+      >
+        {mode === "signin" ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+      </button>
+    </form>
+  );
+}
+
+function OtpForm() {
+  const [email, setEmail] = useState("");
+  const [token, setToken] = useState("");
+  const [stage, setStage] = useState<"send" | "verify">("send");
+  const [busy, setBusy] = useState(false);
+
+  const sendCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.includes("@")) return toast.error("Valid email required");
+    setBusy(true);
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/` },
+    });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    setStage("verify");
+    toast.success("Code sent to your email");
+  };
+
+  const verify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (token.length < 6) return toast.error("Enter the 6-digit code");
+    setBusy(true);
+    const { error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("Logged in");
+  };
+
+  return stage === "send" ? (
+    <form className="space-y-4" onSubmit={sendCode}>
+      <div className="space-y-2">
+        <Label htmlFor="otp-email">Email</Label>
+        <Input id="otp-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+      </div>
+      <Button type="submit" className="w-full" size="lg" disabled={busy} style={{ background: "var(--gradient-primary)" }}>
+        {busy && <Loader2 className="size-4 mr-2 animate-spin" />}
+        Send code
+      </Button>
+    </form>
+  ) : (
+    <form className="space-y-4" onSubmit={verify}>
+      <p className="text-sm text-muted-foreground">Code sent to <strong>{email}</strong></p>
+      <div className="space-y-2">
+        <Label htmlFor="otp-token">6-digit code</Label>
+        <Input id="otp-token" inputMode="numeric" maxLength={6} value={token} onChange={(e) => setToken(e.target.value.replace(/\D/g, ""))} placeholder="123456" />
+      </div>
+      <Button type="submit" className="w-full" size="lg" disabled={busy} style={{ background: "var(--gradient-primary)" }}>
+        {busy && <Loader2 className="size-4 mr-2 animate-spin" />}
+        Verify & login
+      </Button>
+      <button type="button" onClick={() => setStage("send")} className="text-sm text-muted-foreground hover:text-foreground w-full text-center">
+        Resend code
+      </button>
+    </form>
   );
 }
 
@@ -143,16 +203,5 @@ function Feature({ icon, text }: { icon: React.ReactNode; text: string }) {
       <span className="size-7 rounded-full bg-white/15 grid place-items-center">{icon}</span>
       {text}
     </div>
-  );
-}
-
-function GoogleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-4 mr-2" aria-hidden>
-      <path fill="#fff" d="M21.6 12.227c0-.709-.064-1.39-.182-2.045H12v3.868h5.382a4.6 4.6 0 0 1-1.995 3.018v2.51h3.227c1.89-1.741 2.986-4.305 2.986-7.35Z"/>
-      <path fill="#fff" opacity=".9" d="M12 22c2.7 0 4.964-.895 6.618-2.422l-3.227-2.51c-.895.6-2.04.955-3.39.955-2.605 0-4.81-1.76-5.6-4.122H3.067v2.59A10 10 0 0 0 12 22Z"/>
-      <path fill="#fff" opacity=".7" d="M6.4 13.9a6 6 0 0 1 0-3.82V7.49H3.067a10 10 0 0 0 0 9.01L6.4 13.9Z"/>
-      <path fill="#fff" opacity=".5" d="M12 5.96c1.468 0 2.786.504 3.823 1.495l2.868-2.868C16.96 2.99 14.695 2 12 2A10 10 0 0 0 3.067 7.49L6.4 10.08C7.19 7.72 9.395 5.96 12 5.96Z"/>
-    </svg>
   );
 }
