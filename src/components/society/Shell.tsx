@@ -1,13 +1,15 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Building2, LogOut } from "lucide-react";
+import { Building2, LogOut, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/society/auth";
 import { useT } from "@/lib/society/i18n";
+import { useTheme } from "@/lib/society/theme";
 import type { ReactNode } from "react";
 
 export function Shell({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   const { user, signOut } = useAuth();
   const { lang, setLang, t } = useT();
+  const { theme, toggle } = useTheme();
   const navigate = useNavigate();
 
   return (
@@ -24,6 +26,9 @@ export function Shell({ title, subtitle, children }: { title: string; subtitle?:
             {t("appName")}
           </Link>
           <div className="flex items-center gap-3">
+            <Button variant="outline" size="icon" onClick={toggle} aria-label="Toggle theme">
+              {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            </Button>
             <Button
               variant="outline"
               size="sm"
