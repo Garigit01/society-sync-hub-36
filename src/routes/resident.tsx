@@ -4,12 +4,16 @@ import { Shell } from "@/components/society/Shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/society/auth";
 import { supabase } from "@/integrations/supabase/client";
-import { currentMonth, todayISO, BASELINE_AMOUNT, DEFAULT_DUTIES, type Profile, type MaintenanceRecord, type Complaint, type Duty, type Expense } from "@/lib/society/db";
-import { CheckCircle2, AlertTriangle, Send } from "lucide-react";
+import { currentMonth, todayISO, BASELINE_AMOUNT, DEFAULT_DUTIES, penaltyForToday, type Profile, type MaintenanceRecord, type Complaint, type Duty, type Expense } from "@/lib/society/db";
+import { CheckCircle2, AlertTriangle, Send, Home, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
+import { DocumentsTab } from "./admin";
 
 export const Route = createFileRoute("/resident")({
   head: () => ({ meta: [{ title: "My Dashboard — Harmony Heights" }] }),
@@ -33,12 +37,14 @@ function ResidentPage() {
     });
   }, [user, role, loading, navigate]);
 
-  // Ensure maintenance row + today's duty
   useEffect(() => {
     if (!ready || !user) return;
     const month = currentMonth();
-    supabase.from("maintenance").select("id").eq("user_id", user.id).eq("month", month).maybeSingle().then(({ data }) => {
-      if (!data) supabase.from("maintenance").insert({ user_id: user.id, month, amount: BASELINE_AMOUNT });
+    supabase.from("society_settings").select("base_amount").eq("id", 1).maybeSingle().then(({ data }) => {
+      const base = Number(data?.base_amount ?? BASELINE_AMOUNT);
+      supabase.from("maintenance").select("id").eq("user_id", user.id).eq("month", month).maybeSingle().then(({ data: m }) => {
+        if (!m) supabase.from("maintenance").insert({ user_id: user.id, month, amount: base });
+      });
     });
     const today = todayISO();
     supabase.from("duties").select("id").eq("user_id", user.id).eq("date", today).maybeSingle().then(({ data }) => {
@@ -53,16 +59,33 @@ function ResidentPage() {
 
   return (
     <Shell title={`Welcome, ${(profile.full_name ?? "Resident").split(" ")[0]}`} subtitle={`Flat ${profile.flat} · ${profile.occupancy}`}>
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <MaintenanceCard userId={profile.id} />
-          <DutyCard userId={profile.id} />
-          <ComplaintBox userId={profile.id} />
-        </div>
-        <div className="space-y-6">
-          <TransparencyCard />
-        </div>
-      </div>
+      <Tabs defaultValue="home" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="home">Home</TabsTrigger>
+          <TabsTrigger value="docs">Documents</TabsTrigger>
+          {profile.occupancy === "Owner" && <TabsTrigger value="flat">Flat & Tenants</TabsTrigger>}
+        </TabsList>
+        <TabsContent value="home">
+          <div className="grid lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <MaintenanceCard userId={profile.id} />
+              <DutyCard userId={profile.id} />
+              <ComplaintBox userId={profile.id} />
+            </div>
+            <div className="space-y-6">
+              <TransparencyCard />
+            </div>
+          </div>
+        </TabsContent>
+        <TabsContent value="docs">
+          <DocumentsTab isAdmin={false} />
+        </TabsContent>
+        {profile.occupancy === "Owner" && (
+          <TabsContent value="flat">
+            <FlatTab profile={profile} />
+          </TabsContent>
+        )}
+      </Tabs>
     </Shell>
   );
 }
@@ -79,16 +102,26 @@ function MaintenanceCard({ userId }: { userId: string }) {
   }, [userId, month]);
 
   const paid = rec?.status === "Paid";
+  const amount = Number(rec?.amount ?? BASELINE_AMOUNT);
+  const past = Number(rec?.past_dues ?? 0);
+  const penalty = paid ? 0 : (Number(rec?.penalty ?? 0) || penaltyForToday());
+  const total = paid ? past : amount + past + penalty;
+
   return (
     <Card className="p-6 border-0 shadow-[var(--shadow-elevated)] text-primary-foreground relative overflow-hidden"
-      style={{ background: paid ? "linear-gradient(135deg, oklch(0.55 0.18 150), oklch(0.7 0.14 160))" : "var(--gradient-hero)" }}>
+      style={{ background: paid && past === 0 ? "linear-gradient(135deg, oklch(0.55 0.18 150), oklch(0.7 0.14 160))" : "var(--gradient-hero)" }}>
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm opacity-80">Maintenance · {month}</p>
-          <p className="text-4xl font-bold mt-1">₹{Number(rec?.amount ?? BASELINE_AMOUNT).toLocaleString()}</p>
-          <p className="text-sm opacity-90 mt-1">{paid ? `Paid via ${rec?.mode}` : "Awaiting payment"}</p>
+          <p className="text-sm opacity-80">Total Outstanding · {month}</p>
+          <p className="text-4xl font-bold mt-1">₹{total.toLocaleString()}</p>
+          <div className="text-xs opacity-90 mt-2 grid gap-0.5">
+            <span>Current: ₹{amount.toLocaleString()}</span>
+            {past > 0 && <span>Past dues: ₹{past.toLocaleString()}</span>}
+            {penalty > 0 && <span>Late fee: ₹{penalty.toLocaleString()}</span>}
+            {paid && <span className="font-semibold">Current month paid via {rec?.mode}</span>}
+          </div>
         </div>
-        <Badge className={paid ? "bg-white text-success" : "bg-white text-destructive"}>{paid ? "PAID" : "PENDING"}</Badge>
+        <Badge className={total === 0 ? "bg-white text-success" : "bg-white text-destructive"}>{total === 0 ? "CLEARED" : "DUE"}</Badge>
       </div>
     </Card>
   );
@@ -225,5 +258,97 @@ function TransparencyCard() {
         ))}
       </div>
     </Card>
+  );
+}
+
+interface FlatHistoryRow {
+  id: string;
+  flat: string;
+  tenant_name: string | null;
+  tenant_contact: string | null;
+  action: string;
+  notes: string | null;
+  created_at: string;
+}
+
+function FlatTab({ profile }: { profile: Profile }) {
+  const [history, setHistory] = useState<FlatHistoryRow[]>([]);
+  const [form, setForm] = useState({ action: "Tenant added", tenant_name: "", tenant_contact: "", notes: "" });
+
+  const load = useCallback(() => {
+    if (!profile.flat) return;
+    supabase.from("flat_history").select("*").eq("flat", profile.flat).order("created_at", { ascending: false }).then(({ data }) => setHistory((data ?? []) as FlatHistoryRow[]));
+  }, [profile.flat]);
+  useEffect(() => { load(); }, [load]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile.flat) return toast.error("No flat assigned");
+    if (!form.tenant_name.trim() && form.action !== "Tenant removed") return toast.error("Tenant name required");
+    const { error } = await supabase.from("flat_history").insert({
+      flat: profile.flat,
+      owner_user_id: profile.id,
+      action: form.action,
+      tenant_name: form.tenant_name.trim() || null,
+      tenant_contact: form.tenant_contact.trim() || null,
+      notes: form.notes.trim() || null,
+    });
+    if (error) return toast.error(error.message);
+    toast.success("Recorded");
+    setForm({ action: "Tenant added", tenant_name: "", tenant_contact: "", notes: "" });
+    load();
+  };
+
+  return (
+    <div className="grid lg:grid-cols-2 gap-6">
+      <Card className="p-6 border-0 shadow-[var(--shadow-card)]">
+        <h3 className="font-semibold text-lg flex items-center gap-2"><Home className="size-4" /> Flat {profile.flat}</h3>
+        <p className="text-sm text-muted-foreground mb-4">Record tenant arrivals, departures, and transfers. The full history is preserved below.</p>
+        <form className="space-y-3" onSubmit={submit}>
+          <div className="space-y-1">
+            <Label>Action</Label>
+            <select className="w-full border rounded-md h-10 px-3 bg-background" value={form.action} onChange={(e) => setForm({ ...form, action: e.target.value })}>
+              <option>Tenant added</option>
+              <option>Tenant removed</option>
+              <option>Tenant changed</option>
+              <option>Owner self-occupied</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label>Tenant name</Label>
+            <Input value={form.tenant_name} onChange={(e) => setForm({ ...form, tenant_name: e.target.value })} />
+          </div>
+          <div className="space-y-1">
+            <Label>Tenant contact</Label>
+            <Input value={form.tenant_contact} onChange={(e) => setForm({ ...form, tenant_contact: e.target.value })} placeholder="+91..." />
+          </div>
+          <div className="space-y-1">
+            <Label>Notes</Label>
+            <Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+          </div>
+          <Button type="submit" className="w-full"><ArrowRightLeft className="size-4 mr-1" /> Record change</Button>
+        </form>
+      </Card>
+      <Card className="p-6 border-0 shadow-[var(--shadow-card)]">
+        <h3 className="font-semibold text-lg mb-2">History</h3>
+        {history.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No changes recorded yet.</p>
+        ) : (
+          <ol className="space-y-3 border-l-2 border-border pl-4">
+            {history.map((h) => (
+              <li key={h.id} className="relative">
+                <span className="absolute -left-[21px] top-1.5 size-3 rounded-full bg-primary" />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{new Date(h.created_at).toLocaleString()}</span>
+                  <Badge variant="outline">{h.action}</Badge>
+                </div>
+                <p className="text-sm mt-1 font-medium">{h.tenant_name ?? "—"}{h.tenant_contact ? ` · ${h.tenant_contact}` : ""}</p>
+                {h.notes && <p className="text-xs text-muted-foreground mt-0.5">{h.notes}</p>}
+              </li>
+            ))}
+          </ol>
+        )}
+      </Card>
+    </div>
   );
 }

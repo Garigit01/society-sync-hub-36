@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { ADMIN_EMAIL, type Role } from "./db";
+import type { Role } from "./db";
 
 interface AuthCtx {
   user: User | null;
@@ -22,8 +22,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchRole = async (u: User | null) => {
     if (!u) { setRole(null); return; }
-    // Fast path: admin email
-    if (u.email?.toLowerCase() === ADMIN_EMAIL) { setRole("admin"); return; }
     const { data } = await supabase
       .from("user_roles")
       .select("role")
@@ -67,4 +65,3 @@ export function useAuth() {
   return ctx;
 }
 
-export { ADMIN_EMAIL };
