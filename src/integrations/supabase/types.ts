@@ -38,6 +38,33 @@ export type Database = {
         }
         Relationships: []
       }
+      documents: {
+        Row: {
+          category: string
+          created_at: string
+          file_path: string
+          id: string
+          title: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          file_path: string
+          id?: string
+          title: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          file_path?: string
+          id?: string
+          title?: string
+          uploaded_by?: string | null
+        }
+        Relationships: []
+      }
       duties: {
         Row: {
           date: string
@@ -95,6 +122,39 @@ export type Database = {
         }
         Relationships: []
       }
+      flat_history: {
+        Row: {
+          action: string
+          created_at: string
+          flat: string
+          id: string
+          notes: string | null
+          owner_user_id: string | null
+          tenant_contact: string | null
+          tenant_name: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          flat: string
+          id?: string
+          notes?: string | null
+          owner_user_id?: string | null
+          tenant_contact?: string | null
+          tenant_name?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          flat?: string
+          id?: string
+          notes?: string | null
+          owner_user_id?: string | null
+          tenant_contact?: string | null
+          tenant_name?: string | null
+        }
+        Relationships: []
+      }
       maintenance: {
         Row: {
           amount: number
@@ -102,6 +162,8 @@ export type Database = {
           mode: string
           month: string
           paid: number
+          past_dues: number
+          penalty: number
           status: string
           updated_at: string
           user_id: string
@@ -112,6 +174,8 @@ export type Database = {
           mode?: string
           month: string
           paid?: number
+          past_dues?: number
+          penalty?: number
           status?: string
           updated_at?: string
           user_id: string
@@ -122,6 +186,8 @@ export type Database = {
           mode?: string
           month?: string
           paid?: number
+          past_dues?: number
+          penalty?: number
           status?: string
           updated_at?: string
           user_id?: string
@@ -164,6 +230,24 @@ export type Database = {
           updated_at?: string
           vehicle?: string | null
           whatsapp?: string | null
+        }
+        Relationships: []
+      }
+      society_settings: {
+        Row: {
+          base_amount: number
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          base_amount?: number
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          base_amount?: number
+          id?: number
+          updated_at?: string
         }
         Relationships: []
       }
