@@ -9,17 +9,10 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as ResidentRouteImport } from './routes/resident'
 import { Route as ProfileSetupRouteImport } from './routes/profile-setup'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 
-const ResidentRoute = ResidentRouteImport.update({
-  id: '/resident',
-  path: '/resident',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ProfileSetupRoute = ProfileSetupRouteImport.update({
   id: '/profile-setup',
   path: '/profile-setup',
@@ -30,11 +23,6 @@ const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminRoute = AdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -43,62 +31,36 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/profile-setup': typeof ProfileSetupRoute
-  '/resident': typeof ResidentRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/profile-setup': typeof ProfileSetupRoute
-  '/resident': typeof ResidentRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/profile-setup': typeof ProfileSetupRoute
-  '/resident': typeof ResidentRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/admin'
-    | '/forgot-password'
-    | '/profile-setup'
-    | '/resident'
+  fullPaths: '/' | '/forgot-password' | '/profile-setup'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/forgot-password' | '/profile-setup' | '/resident'
-  id:
-    | '__root__'
-    | '/'
-    | '/admin'
-    | '/forgot-password'
-    | '/profile-setup'
-    | '/resident'
+  to: '/' | '/forgot-password' | '/profile-setup'
+  id: '__root__' | '/' | '/forgot-password' | '/profile-setup'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AdminRoute: typeof AdminRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   ProfileSetupRoute: typeof ProfileSetupRoute
-  ResidentRoute: typeof ResidentRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/resident': {
-      id: '/resident'
-      path: '/resident'
-      fullPath: '/resident'
-      preLoaderRoute: typeof ResidentRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/profile-setup': {
       id: '/profile-setup'
       path: '/profile-setup'
@@ -113,13 +75,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin': {
-      id: '/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -132,10 +87,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AdminRoute: AdminRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   ProfileSetupRoute: ProfileSetupRoute,
-  ResidentRoute: ResidentRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
