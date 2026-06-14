@@ -535,6 +535,7 @@ function UploadForm({ onUpload, disabled }: { onUpload: (file: File, title: stri
 }
 
 function BroadcastTab() {
+  const { t } = useT();
   const month = currentMonth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [maint, setMaint] = useState<MaintenanceRecord[]>([]);
@@ -560,23 +561,25 @@ function BroadcastTab() {
   }, [profiles, maint, filter]);
 
   return (
-    <Card className="p-6 border-0 shadow-[var(--shadow-card)]">
-      <h3 className="font-semibold text-lg mb-1">WhatsApp Broadcast Center</h3>
+    <div className="space-y-6">
+      <DutyAssignment profiles={profiles} />
+      <Card className="p-6 border-0 shadow-[var(--shadow-card)]">
+        <h3 className="font-semibold text-lg mb-1">{t("broadcastCenter")}</h3>
       <p className="text-sm text-muted-foreground mb-4">Compose a message, choose an audience, then open per-resident WhatsApp chats.</p>
       <div className="grid sm:grid-cols-3 gap-3 mb-4">
         <div className="sm:col-span-2 space-y-2">
-          <Label>Message</Label>
+          <Label>{t("message")}</Label>
           <Textarea rows={3} value={message} onChange={(e) => setMessage(e.target.value)} />
         </div>
         <div className="space-y-2">
-          <Label>Audience</Label>
+          <Label>{t("audience")}</Label>
           <Select value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All residents</SelectItem>
-              <SelectItem value="pending">Pending payers</SelectItem>
-              <SelectItem value="owners">Owners only</SelectItem>
-              <SelectItem value="tenants">Tenants only</SelectItem>
+              <SelectItem value="all">{t("allResidents")}</SelectItem>
+              <SelectItem value="pending">{t("pendingPayers")}</SelectItem>
+              <SelectItem value="owners">{t("ownersOnly")}</SelectItem>
+              <SelectItem value="tenants">{t("tenantsOnly")}</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">{targets.length} recipient(s)</p>
@@ -599,6 +602,85 @@ function BroadcastTab() {
         })}
         {targets.length === 0 && <p className="text-sm text-muted-foreground col-span-full">No matching residents.</p>}
       </div>
+      </Card>
+    </div>
+  );
+}
+
+function DutyAssignment({ profiles }: { profiles: Profile[] }) {
+  const { t } = useT();
+  const [task, setTask] = useState("");
+  const [userId, setUserId] = useState<string>("");
+  const [duties, setDuties] = useState<(Duty & { profile?: Profile })[]>([]);
+
+  const load = useCallback(async () => {
+    const today = todayISO();
+    const { data } = await supabase.from("duties").select("*").gte("date", today).order("date", { ascending: true });
+    const list = (data ?? []) as Duty[];
+    setDuties(list.map((d) => ({ ...d, profile: profiles.find((p) => p.id === d.user_id) })));
+  }, [profiles]);
+  useEffect(() => { load(); }, [load]);
+
+  const assign = async () => {
+    if (!userId) return toast.error("Select a resident");
+    if (!task.trim()) return toast.error("Task required");
+    const { error } = await supabase.from("duties").insert({ user_id: userId, task: task.trim(), date: todayISO() });
+    if (error) return toast.error(error.message);
+    toast.success("Duty assigned");
+    setTask("");
+    load();
+  };
+
+  const remove = async (id: string) => {
+    const { error } = await supabase.from("duties").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    load();
+  };
+
+  return (
+    <Card className="p-6 border-0 shadow-[var(--shadow-card)]">
+      <h3 className="font-semibold text-lg mb-1 flex items-center gap-2"><ClipboardList className="size-4" /> {t("assignDuty")}</h3>
+      <p className="text-sm text-muted-foreground mb-4">Assign a task to a specific flat. It appears on the resident's dashboard instantly.</p>
+      <div className="grid sm:grid-cols-3 gap-3 mb-4">
+        <div className="space-y-1">
+          <Label>{t("resident")}</Label>
+          <Select value={userId} onValueChange={setUserId}>
+            <SelectTrigger><SelectValue placeholder="Select flat" /></SelectTrigger>
+            <SelectContent>
+              {profiles.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.flat ?? "—"} · {p.full_name ?? p.email}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1 sm:col-span-2">
+          <Label>{t("task")}</Label>
+          <div className="flex gap-2">
+            <Input value={task} onChange={(e) => setTask(e.target.value)} placeholder="e.g. Inspect terrace door" />
+            <Button onClick={assign}><Send className="size-4 mr-1" /> {t("assign")}</Button>
+          </div>
+        </div>
+      </div>
+      <h4 className="text-sm font-semibold mb-2">{t("assignedDuties")} ({duties.length})</h4>
+      {duties.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No duties assigned.</p>
+      ) : (
+        <ul className="divide-y">
+          {duties.map((d) => (
+            <li key={d.id} className="flex items-center justify-between py-2">
+              <div className="min-w-0">
+                <div className="text-sm font-medium truncate">{d.task}</div>
+                <div className="text-xs text-muted-foreground">
+                  {d.profile?.flat ?? "—"} · {d.profile?.full_name ?? d.profile?.email ?? "—"} · {d.date} {d.done ? "· ✓ done" : ""}
+                </div>
+              </div>
+              <Button size="icon" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => remove(d.id)} aria-label={t("remove")}>
+                <X className="size-4" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
     </Card>
   );
 }
