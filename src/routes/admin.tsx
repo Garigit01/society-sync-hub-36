@@ -67,22 +67,28 @@ function useSettings() {
 }
 
 function UsersTab() {
+  const { t, lang } = useT();
   const month = currentMonth();
+  const prevMonth = (() => {
+    const [y, m] = month.split("-").map(Number);
+    const d = new Date(y, (m ?? 1) - 2, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  })();
   const { base, setBase, reload: reloadBase } = useSettings();
   const [draftBase, setDraftBase] = useState<string>("");
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [records, setRecords] = useState<MaintenanceRecord[]>([]);
+  const [allRecords, setAllRecords] = useState<MaintenanceRecord[]>([]);
   const [selected, setSelected] = useState<Profile | null>(null);
   const penalty = penaltyForToday();
 
   const load = useCallback(async () => {
     const [{ data: ps }, { data: ms }] = await Promise.all([
       supabase.from("profiles").select("*").order("flat"),
-      supabase.from("maintenance").select("*").eq("month", month),
+      supabase.from("maintenance").select("*"),
     ]);
     setProfiles((ps ?? []) as Profile[]);
-    setRecords((ms ?? []) as MaintenanceRecord[]);
-  }, [month]);
+    setAllRecords((ms ?? []) as MaintenanceRecord[]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setDraftBase(String(base)); }, [base]);
@@ -90,14 +96,15 @@ function UsersTab() {
   const saveBase = async () => {
     const v = Number(draftBase);
     if (!v || v < 0) return toast.error("Enter a valid base amount");
-    const { error } = await supabase.from("society_settings").update({ base_amount: v, updated_at: new Date().toISOString() }).eq("id", 1);
+    const { error } = await supabase.rpc("apply_base_amount", { _amount: v });
     if (error) return toast.error(error.message);
-    toast.success("Base maintenance updated");
+    toast.success("Base maintenance applied to all residents for this month");
     reloadBase();
+    load();
   };
 
   const updateRec = async (userId: string, patch: Partial<MaintenanceRecord>) => {
-    const existing = records.find((m) => m.user_id === userId);
+    const existing = allRecords.find((m) => m.user_id === userId && m.month === month);
     if (existing) {
       const { error } = await supabase.from("maintenance").update(patch).eq("id", existing.id);
       if (error) return toast.error(error.message);
@@ -123,38 +130,47 @@ function UsersTab() {
   return (
     <div className="space-y-6">
       <Card className="p-6 border-0 shadow-[var(--shadow-card)]">
-        <h3 className="font-semibold text-lg mb-2">Society settings</h3>
+        <h3 className="font-semibold text-lg mb-2">{t("societySettings")}</h3>
+        <div className="grid sm:grid-cols-2 gap-2 text-xs text-muted-foreground mb-3">
+          <div>📅 {t("active")}: <span className="font-semibold text-foreground">{monthLabel(month, lang)}</span></div>
+          <div>⏳ {t("pendingMonth")}: <span className="font-semibold text-foreground">{monthLabel(prevMonth, lang)}</span></div>
+          <div>{t("billingDate")}</div>
+          <div>{t("dueDate")}</div>
+        </div>
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1">
-            <Label>Base maintenance (₹)</Label>
+            <Label>{t("baseMaintenance")}</Label>
             <Input type="number" className="w-40" value={draftBase} onChange={(e) => setDraftBase(e.target.value)} />
           </div>
-          <Button onClick={saveBase}><Save className="size-4 mr-1" /> Save</Button>
+          <Button onClick={saveBase}><Save className="size-4 mr-1" /> {t("save")}</Button>
           <p className="text-xs text-muted-foreground ml-auto">
-            Late fee today: <span className="font-semibold text-foreground">₹{penalty}</span> (11–20 ₹100 · 21+ ₹250)
+            {t("lateFeeToday")}: <span className="font-semibold text-foreground">₹{penalty}</span> (11–20 ₹100 · 21+ ₹250)
           </p>
         </div>
       </Card>
 
       <Card className="p-6 border-0 shadow-[var(--shadow-card)]">
-        <h3 className="font-semibold text-lg mb-4">Resident directory ({profiles.length})</h3>
+        <h3 className="font-semibold text-lg mb-4">{t("residentDirectory")} ({profiles.length})</h3>
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Flat</TableHead><TableHead>Name</TableHead>
-                <TableHead>Current</TableHead><TableHead>Past Dues</TableHead><TableHead>Penalty</TableHead>
-                <TableHead>Total Outstanding</TableHead>
-                <TableHead>Status</TableHead><TableHead>Mode</TableHead><TableHead></TableHead>
+                <TableHead>{t("flat")}</TableHead><TableHead>{t("name")}</TableHead>
+                <TableHead>{t("current")}</TableHead><TableHead>{t("pastDues")}</TableHead><TableHead>{t("penalty")}</TableHead>
+                <TableHead>{t("totalOutstanding")}</TableHead>
+                <TableHead>{t("status")}</TableHead><TableHead>{t("mode")}</TableHead><TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {profiles.map((p) => {
-                const r = records.find((m) => m.user_id === p.id);
+                const r = allRecords.find((m) => m.user_id === p.id && m.month === month);
+                const past = allRecords
+                  .filter((m) => m.user_id === p.id && m.month < month && m.status === "Pending")
+                  .reduce((s, m) => s + Number(m.amount), 0);
                 const amt = Number(r?.amount ?? base);
-                const past = Number(r?.past_dues ?? 0);
                 const pen = r?.status === "Paid" ? 0 : Number(r?.penalty ?? penalty);
-                const outstanding = r?.status === "Paid" ? past : amt + past + pen;
+                const curDue = r?.status === "Paid" ? 0 : amt;
+                const outstanding = curDue + past + pen;
                 return (
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">{p.flat ?? "—"}</TableCell>
@@ -164,25 +180,15 @@ function UsersTab() {
                       </button>
                     </TableCell>
                     <TableCell>₹{amt}</TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        className="w-24 h-8"
-                        defaultValue={past}
-                        onBlur={(e) => {
-                          const v = Number(e.target.value);
-                          if (v !== past) updateRec(p.id, { past_dues: v });
-                        }}
-                      />
-                    </TableCell>
+                    <TableCell className="text-muted-foreground">₹{past.toLocaleString()}</TableCell>
                     <TableCell>₹{pen}</TableCell>
                     <TableCell className="font-semibold">₹{outstanding.toLocaleString()}</TableCell>
                     <TableCell>
                       <Select value={r?.status ?? "Pending"} onValueChange={(v) => updateRec(p.id, { status: v as "Paid" | "Pending", paid: v === "Paid" ? amt : 0, penalty: v === "Paid" ? 0 : penalty })}>
                         <SelectTrigger className="w-28 h-8"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Paid">Paid</SelectItem>
-                          <SelectItem value="Pending">Pending</SelectItem>
+                          <SelectItem value="Paid">{t("paid")}</SelectItem>
+                          <SelectItem value="Pending">{t("pending")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableCell>
