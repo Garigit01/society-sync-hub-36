@@ -1,8 +1,9 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Building2, LogOut, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/lib/society/auth";
-import { useT } from "@/lib/society/i18n";
+import { useT, type Lang } from "@/lib/society/i18n";
 import { useTheme } from "@/lib/society/theme";
 import type { ReactNode } from "react";
 
@@ -29,14 +30,16 @@ export function Shell({ title, subtitle, children }: { title: string; subtitle?:
             <Button variant="outline" size="icon" onClick={toggle} aria-label="Toggle theme">
               {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setLang(lang === "en" ? "hi" : "en")}
-              aria-label={t("language")}
-            >
-              {lang === "en" ? "हिं" : "EN"}
-            </Button>
+            <Select value={lang} onValueChange={(v) => setLang(v as Lang)}>
+              <SelectTrigger className="h-9 w-[110px]" aria-label={t("language")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="en">English</SelectItem>
+                <SelectItem value="hi">हिंदी</SelectItem>
+                <SelectItem value="mr">मराठी</SelectItem>
+              </SelectContent>
+            </Select>
             <div className="text-right text-sm hidden sm:block">
               <div className="font-medium">{user?.email}</div>
             </div>
