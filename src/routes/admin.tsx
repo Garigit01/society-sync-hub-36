@@ -13,8 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/society/auth";
 import { supabase } from "@/integrations/supabase/client";
-import { currentMonth, todayISO, penaltyForToday, type Profile, type MaintenanceRecord, type Complaint, type Expense } from "@/lib/society/db";
-import { Download, Send, X, Upload, Trash2, MessageSquare, Save } from "lucide-react";
+import { currentMonth, todayISO, penaltyForToday, type Profile, type MaintenanceRecord, type Complaint, type Expense, type Duty } from "@/lib/society/db";
+import { useT, monthLabel } from "@/lib/society/i18n";
+import { Download, Send, X, Upload, Trash2, MessageSquare, Save, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RTooltip, BarChart, Bar, XAxis, YAxis, Legend } from "recharts";
 
