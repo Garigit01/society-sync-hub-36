@@ -23,6 +23,7 @@ export const Route = createFileRoute("/resident")({
 
 function ResidentPage() {
   const { user, role, loading } = useAuth();
+  const { t } = useT();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [ready, setReady] = useState(false);
@@ -51,7 +52,6 @@ function ResidentPage() {
 
   if (!ready || !profile) return null;
 
-  const { t } = useT();
   return (
     <Shell title={`${t("welcomeBack")}, ${(profile.full_name ?? "Resident").split(" ")[0]}`} subtitle={`${t("flat")} ${profile.flat} · ${profile.occupancy}`}>
       <Tabs defaultValue="home" className="space-y-6">
