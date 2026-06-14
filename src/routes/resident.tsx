@@ -173,7 +173,6 @@ function BuildingFundCard() {
 }
 
 function DutyCard({ userId }: { userId: string }) {
-function DutyCard({ userId }: { userId: string }) {
   const today = todayISO();
   const { t } = useT();
   const [duties, setDuties] = useState<Duty[]>([]);
