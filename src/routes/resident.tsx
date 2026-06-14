@@ -10,8 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/society/auth";
 import { supabase } from "@/integrations/supabase/client";
-import { currentMonth, todayISO, BASELINE_AMOUNT, DEFAULT_DUTIES, penaltyForToday, type Profile, type MaintenanceRecord, type Complaint, type Duty, type Expense } from "@/lib/society/db";
-import { CheckCircle2, AlertTriangle, Send, Home, ArrowRightLeft } from "lucide-react";
+import { currentMonth, todayISO, BASELINE_AMOUNT, penaltyForToday, type Profile, type MaintenanceRecord, type Complaint, type Duty, type Expense } from "@/lib/society/db";
+import { useT, monthLabel } from "@/lib/society/i18n";
+import { CheckCircle2, AlertTriangle, Send, Home, ArrowRightLeft, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { DocumentsTab } from "./admin";
 
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/resident")({
 
 function ResidentPage() {
   const { user, role, loading } = useAuth();
+  const { t } = useT();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [ready, setReady] = useState(false);
@@ -46,23 +48,16 @@ function ResidentPage() {
         if (!m) supabase.from("maintenance").insert({ user_id: user.id, month, amount: base });
       });
     });
-    const today = todayISO();
-    supabase.from("duties").select("id").eq("user_id", user.id).eq("date", today).maybeSingle().then(({ data }) => {
-      if (!data) {
-        const idx = Math.floor((Date.now() / 86400000) % DEFAULT_DUTIES.length);
-        supabase.from("duties").insert({ user_id: user.id, task: DEFAULT_DUTIES[idx], date: today });
-      }
-    });
   }, [ready, user]);
 
   if (!ready || !profile) return null;
 
   return (
-    <Shell title={`Welcome, ${(profile.full_name ?? "Resident").split(" ")[0]}`} subtitle={`Flat ${profile.flat} · ${profile.occupancy}`}>
+    <Shell title={`${t("welcomeBack")}, ${(profile.full_name ?? "Resident").split(" ")[0]}`} subtitle={`${t("flat")} ${profile.flat} · ${profile.occupancy}`}>
       <Tabs defaultValue="home" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="home">Home</TabsTrigger>
-          <TabsTrigger value="docs">Documents</TabsTrigger>
+          <TabsTrigger value="home">{t("home")}</TabsTrigger>
+          <TabsTrigger value="docs">{t("tabDocs")}</TabsTrigger>
           {profile.occupancy === "Owner" && <TabsTrigger value="flat">Flat & Tenants</TabsTrigger>}
         </TabsList>
         <TabsContent value="home">
@@ -73,6 +68,7 @@ function ResidentPage() {
               <ComplaintBox userId={profile.id} />
             </div>
             <div className="space-y-6">
+              <BuildingFundCard />
               <TransparencyCard />
             </div>
           </div>
@@ -92,36 +88,85 @@ function ResidentPage() {
 
 function MaintenanceCard({ userId }: { userId: string }) {
   const month = currentMonth();
-  const [rec, setRec] = useState<MaintenanceRecord | null>(null);
+  const prevMonth = (() => {
+    const [y, m] = month.split("-").map(Number);
+    const d = new Date(y, (m ?? 1) - 2, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  })();
+  const { t, lang } = useT();
+  const [all, setAll] = useState<MaintenanceRecord[]>([]);
 
   useEffect(() => {
-    const load = () => supabase.from("maintenance").select("*").eq("user_id", userId).eq("month", month).maybeSingle().then(({ data }) => setRec(data as MaintenanceRecord | null));
+    const load = () => supabase.from("maintenance").select("*").eq("user_id", userId).then(({ data }) => setAll((data ?? []) as MaintenanceRecord[]));
     load();
     const ch = supabase.channel(`maint-${userId}`).on("postgres_changes", { event: "*", schema: "public", table: "maintenance", filter: `user_id=eq.${userId}` }, load).subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [userId, month]);
+  }, [userId]);
 
+  const rec = all.find((m) => m.month === month) ?? null;
+  const past = all.filter((m) => m.month < month && m.status === "Pending").reduce((s, m) => s + Number(m.amount), 0);
   const paid = rec?.status === "Paid";
   const amount = Number(rec?.amount ?? BASELINE_AMOUNT);
-  const past = Number(rec?.past_dues ?? 0);
-  const penalty = paid ? 0 : (Number(rec?.penalty ?? 0) || penaltyForToday());
-  const total = paid ? past : amount + past + penalty;
+  const penalty = paid ? 0 : penaltyForToday();
+  const total = (paid ? 0 : amount) + past + penalty;
 
   return (
     <Card className="p-6 border-0 shadow-[var(--shadow-elevated)] text-primary-foreground relative overflow-hidden"
-      style={{ background: paid && past === 0 ? "linear-gradient(135deg, oklch(0.55 0.18 150), oklch(0.7 0.14 160))" : "var(--gradient-hero)" }}>
+      style={{ background: total === 0 ? "linear-gradient(135deg, oklch(0.55 0.18 150), oklch(0.7 0.14 160))" : "var(--gradient-hero)" }}>
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm opacity-80">Total Outstanding · {month}</p>
+          <p className="text-sm opacity-80">{t("totalOutstanding")}</p>
           <p className="text-4xl font-bold mt-1">₹{total.toLocaleString()}</p>
           <div className="text-xs opacity-90 mt-2 grid gap-0.5">
-            <span>Current: ₹{amount.toLocaleString()}</span>
-            {past > 0 && <span>Past dues: ₹{past.toLocaleString()}</span>}
-            {penalty > 0 && <span>Late fee: ₹{penalty.toLocaleString()}</span>}
-            {paid && <span className="font-semibold">Current month paid via {rec?.mode}</span>}
+            <span>{t("active")}: {monthLabel(month, lang)} · ₹{amount.toLocaleString()} ({paid ? t("paid") : t("pending")})</span>
+            {past > 0 && <span>{t("pastDues")} (≤ {monthLabel(prevMonth, lang)}): ₹{past.toLocaleString()}</span>}
+            {penalty > 0 && <span>{t("penalty")}: ₹{penalty.toLocaleString()}</span>}
+            <span className="opacity-80">{t("billingDate")} · {t("dueDate")}</span>
           </div>
         </div>
-        <Badge className={total === 0 ? "bg-white text-success" : "bg-white text-destructive"}>{total === 0 ? "CLEARED" : "DUE"}</Badge>
+        <Badge className={total === 0 ? "bg-white text-success" : "bg-white text-destructive"}>{total === 0 ? t("cleared") : t("due")}</Badge>
+      </div>
+    </Card>
+  );
+}
+
+function BuildingFundCard() {
+  const month = currentMonth();
+  const { t, lang } = useT();
+  const [base, setBase] = useState(BASELINE_AMOUNT);
+  const [count, setCount] = useState(0);
+  const [collected, setCollected] = useState(0);
+
+  useEffect(() => {
+    supabase.from("society_settings").select("base_amount").eq("id", 1).maybeSingle().then(({ data }) => {
+      if (data) setBase(Number(data.base_amount));
+    });
+    supabase.from("profiles").select("id", { count: "exact", head: true }).then(({ count: c }) => setCount(c ?? 0));
+    supabase.from("maintenance").select("paid,status").eq("month", month).then(({ data }) => {
+      const sum = (data ?? []).filter((r) => r.status === "Paid").reduce((s, r) => s + Number(r.paid), 0);
+      setCollected(sum);
+    });
+  }, [month]);
+
+  const expected = base * count;
+  const pct = expected ? Math.min(100, (collected / expected) * 100) : 0;
+
+  return (
+    <Card className="p-6 border-0 shadow-[var(--shadow-card)]">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="size-8 rounded-lg grid place-items-center text-primary-foreground" style={{ background: "var(--gradient-primary)" }}>
+          <Wallet className="size-4" />
+        </span>
+        <h3 className="font-semibold text-lg">{t("totalBuildingFund")}</h3>
+      </div>
+      <p className="text-xs text-muted-foreground mb-3">{t("expectedThisMonth")} · {monthLabel(month, lang)}</p>
+      <p className="text-3xl font-bold">₹{expected.toLocaleString()}</p>
+      <p className="text-xs text-muted-foreground mt-1">{count} {t("resident")} × ₹{base.toLocaleString()}</p>
+      <div className="mt-3">
+        <div className="flex justify-between text-xs mb-1"><span>{t("paid")}</span><span className="font-medium">₹{collected.toLocaleString()}</span></div>
+        <div className="h-2 bg-secondary rounded-full overflow-hidden">
+          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--gradient-primary)" }} />
+        </div>
       </div>
     </Card>
   );
@@ -129,45 +174,57 @@ function MaintenanceCard({ userId }: { userId: string }) {
 
 function DutyCard({ userId }: { userId: string }) {
   const today = todayISO();
-  const [duty, setDuty] = useState<Duty | null>(null);
+  const { t } = useT();
+  const [duties, setDuties] = useState<Duty[]>([]);
 
   const load = useCallback(() => {
-    supabase.from("duties").select("*").eq("user_id", userId).eq("date", today).maybeSingle().then(({ data }) => setDuty(data as Duty | null));
+    supabase.from("duties").select("*").eq("user_id", userId).gte("date", today).order("date").then(({ data }) => setDuties((data ?? []) as Duty[]));
   }, [userId, today]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const ch = supabase.channel(`duty-${userId}`).on("postgres_changes", { event: "*", schema: "public", table: "duties", filter: `user_id=eq.${userId}` }, load).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [userId, load]);
 
-  const markDone = async () => {
-    if (!duty) return;
-    const { error } = await supabase.from("duties").update({ done: true, done_at: new Date().toISOString() }).eq("id", duty.id);
+  const markDone = async (id: string) => {
+    const { error } = await supabase.from("duties").update({ done: true, done_at: new Date().toISOString() }).eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Duty marked complete");
     load();
   };
 
-  const overdue = duty && !duty.done && new Date().getHours() >= 20;
-
   return (
     <Card className="p-6 border-0 shadow-[var(--shadow-card)]">
-      <h3 className="font-semibold text-lg">Today's duty</h3>
-      <p className="text-sm text-muted-foreground">Cut-off 8:00 PM. Mark done before to stay on track.</p>
-      {duty && (
-        <div className="mt-4 rounded-lg border bg-secondary/40 p-4">
-          <p className="font-medium">{duty.task}</p>
-          {duty.done ? (
-            <div className="mt-3 flex items-center text-success text-sm">
-              <CheckCircle2 className="size-4 mr-1" /> Completed {duty.done_at ? `at ${new Date(duty.done_at).toLocaleTimeString()}` : ""}
-            </div>
-          ) : (
-            <div className="mt-3 flex items-center justify-between">
-              {overdue && (
-                <div className="flex items-center text-sm font-medium rounded-md px-3 py-2 bg-warning/20 text-warning-foreground">
-                  <AlertTriangle className="size-4 mr-1" /> Overdue Alert
-                </div>
-              )}
-              <Button onClick={markDone} className="ml-auto" style={{ background: "var(--gradient-primary)" }}>Mark as Done</Button>
-            </div>
-          )}
+      <h3 className="font-semibold text-lg">{t("todaysDuty")}</h3>
+      <p className="text-sm text-muted-foreground">Assigned by your society admin.</p>
+      {duties.length === 0 ? (
+        <p className="mt-4 text-sm text-muted-foreground">{t("noDuty")}</p>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {duties.map((duty) => {
+            const overdue = !duty.done && new Date().getHours() >= 20 && duty.date === today;
+            return (
+              <div key={duty.id} className="rounded-lg border bg-secondary/40 p-4">
+                <p className="font-medium">{duty.task}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{duty.date}</p>
+                {duty.done ? (
+                  <div className="mt-3 flex items-center text-success text-sm">
+                    <CheckCircle2 className="size-4 mr-1" /> Completed {duty.done_at ? `at ${new Date(duty.done_at).toLocaleTimeString()}` : ""}
+                  </div>
+                ) : (
+                  <div className="mt-3 flex items-center justify-between">
+                    {overdue && (
+                      <div className="flex items-center text-sm font-medium rounded-md px-3 py-2 bg-warning/20 text-warning-foreground">
+                        <AlertTriangle className="size-4 mr-1" /> Overdue
+                      </div>
+                    )}
+                    <Button onClick={() => markDone(duty.id)} className="ml-auto" style={{ background: "var(--gradient-primary)" }}>{t("markDone")}</Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </Card>

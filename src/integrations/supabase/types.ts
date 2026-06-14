@@ -277,6 +277,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_base_amount: { Args: { _amount: number }; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
