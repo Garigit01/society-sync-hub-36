@@ -10,8 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/society/auth";
 import { supabase } from "@/integrations/supabase/client";
-import { currentMonth, todayISO, BASELINE_AMOUNT, DEFAULT_DUTIES, penaltyForToday, type Profile, type MaintenanceRecord, type Complaint, type Duty, type Expense } from "@/lib/society/db";
-import { CheckCircle2, AlertTriangle, Send, Home, ArrowRightLeft } from "lucide-react";
+import { currentMonth, todayISO, BASELINE_AMOUNT, penaltyForToday, type Profile, type MaintenanceRecord, type Complaint, type Duty, type Expense } from "@/lib/society/db";
+import { useT, monthLabel } from "@/lib/society/i18n";
+import { CheckCircle2, AlertTriangle, Send, Home, ArrowRightLeft, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { DocumentsTab } from "./admin";
 
@@ -46,23 +47,17 @@ function ResidentPage() {
         if (!m) supabase.from("maintenance").insert({ user_id: user.id, month, amount: base });
       });
     });
-    const today = todayISO();
-    supabase.from("duties").select("id").eq("user_id", user.id).eq("date", today).maybeSingle().then(({ data }) => {
-      if (!data) {
-        const idx = Math.floor((Date.now() / 86400000) % DEFAULT_DUTIES.length);
-        supabase.from("duties").insert({ user_id: user.id, task: DEFAULT_DUTIES[idx], date: today });
-      }
-    });
   }, [ready, user]);
 
   if (!ready || !profile) return null;
 
+  const { t } = useT();
   return (
-    <Shell title={`Welcome, ${(profile.full_name ?? "Resident").split(" ")[0]}`} subtitle={`Flat ${profile.flat} · ${profile.occupancy}`}>
+    <Shell title={`${t("welcomeBack")}, ${(profile.full_name ?? "Resident").split(" ")[0]}`} subtitle={`${t("flat")} ${profile.flat} · ${profile.occupancy}`}>
       <Tabs defaultValue="home" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="home">Home</TabsTrigger>
-          <TabsTrigger value="docs">Documents</TabsTrigger>
+          <TabsTrigger value="home">{t("home")}</TabsTrigger>
+          <TabsTrigger value="docs">{t("tabDocs")}</TabsTrigger>
           {profile.occupancy === "Owner" && <TabsTrigger value="flat">Flat & Tenants</TabsTrigger>}
         </TabsList>
         <TabsContent value="home">
@@ -73,6 +68,7 @@ function ResidentPage() {
               <ComplaintBox userId={profile.id} />
             </div>
             <div className="space-y-6">
+              <BuildingFundCard />
               <TransparencyCard />
             </div>
           </div>
