@@ -173,46 +173,59 @@ function BuildingFundCard() {
 }
 
 function DutyCard({ userId }: { userId: string }) {
+function DutyCard({ userId }: { userId: string }) {
   const today = todayISO();
-  const [duty, setDuty] = useState<Duty | null>(null);
+  const { t } = useT();
+  const [duties, setDuties] = useState<Duty[]>([]);
 
   const load = useCallback(() => {
-    supabase.from("duties").select("*").eq("user_id", userId).eq("date", today).maybeSingle().then(({ data }) => setDuty(data as Duty | null));
+    supabase.from("duties").select("*").eq("user_id", userId).gte("date", today).order("date").then(({ data }) => setDuties((data ?? []) as Duty[]));
   }, [userId, today]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const ch = supabase.channel(`duty-${userId}`).on("postgres_changes", { event: "*", schema: "public", table: "duties", filter: `user_id=eq.${userId}` }, load).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [userId, load]);
 
-  const markDone = async () => {
-    if (!duty) return;
-    const { error } = await supabase.from("duties").update({ done: true, done_at: new Date().toISOString() }).eq("id", duty.id);
+  const markDone = async (id: string) => {
+    const { error } = await supabase.from("duties").update({ done: true, done_at: new Date().toISOString() }).eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Duty marked complete");
     load();
   };
 
-  const overdue = duty && !duty.done && new Date().getHours() >= 20;
-
   return (
     <Card className="p-6 border-0 shadow-[var(--shadow-card)]">
-      <h3 className="font-semibold text-lg">Today's duty</h3>
-      <p className="text-sm text-muted-foreground">Cut-off 8:00 PM. Mark done before to stay on track.</p>
-      {duty && (
-        <div className="mt-4 rounded-lg border bg-secondary/40 p-4">
-          <p className="font-medium">{duty.task}</p>
-          {duty.done ? (
-            <div className="mt-3 flex items-center text-success text-sm">
-              <CheckCircle2 className="size-4 mr-1" /> Completed {duty.done_at ? `at ${new Date(duty.done_at).toLocaleTimeString()}` : ""}
-            </div>
-          ) : (
-            <div className="mt-3 flex items-center justify-between">
-              {overdue && (
-                <div className="flex items-center text-sm font-medium rounded-md px-3 py-2 bg-warning/20 text-warning-foreground">
-                  <AlertTriangle className="size-4 mr-1" /> Overdue Alert
-                </div>
-              )}
-              <Button onClick={markDone} className="ml-auto" style={{ background: "var(--gradient-primary)" }}>Mark as Done</Button>
-            </div>
-          )}
+      <h3 className="font-semibold text-lg">{t("todaysDuty")}</h3>
+      <p className="text-sm text-muted-foreground">Assigned by your society admin.</p>
+      {duties.length === 0 ? (
+        <p className="mt-4 text-sm text-muted-foreground">{t("noDuty")}</p>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {duties.map((duty) => {
+            const overdue = !duty.done && new Date().getHours() >= 20 && duty.date === today;
+            return (
+              <div key={duty.id} className="rounded-lg border bg-secondary/40 p-4">
+                <p className="font-medium">{duty.task}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{duty.date}</p>
+                {duty.done ? (
+                  <div className="mt-3 flex items-center text-success text-sm">
+                    <CheckCircle2 className="size-4 mr-1" /> Completed {duty.done_at ? `at ${new Date(duty.done_at).toLocaleTimeString()}` : ""}
+                  </div>
+                ) : (
+                  <div className="mt-3 flex items-center justify-between">
+                    {overdue && (
+                      <div className="flex items-center text-sm font-medium rounded-md px-3 py-2 bg-warning/20 text-warning-foreground">
+                        <AlertTriangle className="size-4 mr-1" /> Overdue
+                      </div>
+                    )}
+                    <Button onClick={() => markDone(duty.id)} className="ml-auto" style={{ background: "var(--gradient-primary)" }}>{t("markDone")}</Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </Card>
