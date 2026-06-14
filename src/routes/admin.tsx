@@ -26,6 +26,7 @@ export const Route = createFileRoute("/admin")({
 
 function AdminPage() {
   const { user, role, loading } = useAuth();
+  const { t } = useT();
   const navigate = useNavigate();
   useEffect(() => {
     if (loading) return;
@@ -35,14 +36,14 @@ function AdminPage() {
 
   if (role !== "admin") return null;
   return (
-    <Shell title="Admin Dashboard" subtitle="Manage residents, finances, documents and complaints.">
+    <Shell title={t("adminDashboard")} subtitle={t("adminSubtitle")}>
       <Tabs defaultValue="users" className="space-y-6">
         <TabsList className="grid grid-cols-3 sm:grid-cols-5 w-full">
-          <TabsTrigger value="users">Payments & Users</TabsTrigger>
-          <TabsTrigger value="funds">Fund Ledger</TabsTrigger>
-          <TabsTrigger value="complaints">Complaints</TabsTrigger>
-          <TabsTrigger value="docs">Documents</TabsTrigger>
-          <TabsTrigger value="broadcast">Broadcast</TabsTrigger>
+          <TabsTrigger value="users">{t("tabPayments")}</TabsTrigger>
+          <TabsTrigger value="funds">{t("tabFunds")}</TabsTrigger>
+          <TabsTrigger value="complaints">{t("tabComplaints")}</TabsTrigger>
+          <TabsTrigger value="docs">{t("tabDocs")}</TabsTrigger>
+          <TabsTrigger value="broadcast">{t("tabBroadcast")}</TabsTrigger>
         </TabsList>
         <TabsContent value="users"><UsersTab /></TabsContent>
         <TabsContent value="funds"><FundsTab /></TabsContent>
