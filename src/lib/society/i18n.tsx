@@ -244,7 +244,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     setLangState(l);
     if (typeof window !== "undefined") localStorage.setItem("lang", l);
   };
-  const t = (k: TKey) => STRINGS[lang][k] ?? EN[k];
+  const t = (k: TKey): string => {
+    const dict = STRINGS[lang] as Record<string, string>;
+    const fall = STRINGS.en as Record<string, string>;
+    return dict[k as string] ?? fall[k as string] ?? String(k);
+  };
   return <Ctx.Provider value={{ lang, setLang, t }}>{children}</Ctx.Provider>;
 }
 
