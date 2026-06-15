@@ -8,12 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/society/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { currentMonth, todayISO, BASELINE_AMOUNT, penaltyForToday, type Profile, type MaintenanceRecord, type Complaint, type Duty, type Expense } from "@/lib/society/db";
 import { useT, monthLabel } from "@/lib/society/i18n";
 import { useUnreadComplaints, markSeen } from "@/lib/society/unread";
-import { CheckCircle2, AlertTriangle, Send, Home, ArrowRightLeft, Wallet } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Send, Home, ArrowRightLeft, Wallet, QrCode } from "lucide-react";
 import { toast } from "sonner";
 import { DocumentsTab } from "./admin";
 
@@ -103,6 +104,8 @@ function MaintenanceCard({ userId }: { userId: string }) {
   })();
   const { t, lang } = useT();
   const [all, setAll] = useState<MaintenanceRecord[]>([]);
+  const [payOpen, setPayOpen] = useState(false);
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const load = () => supabase.from("maintenance").select("*").eq("user_id", userId).then(({ data }) => setAll((data ?? []) as MaintenanceRecord[]));
@@ -118,7 +121,17 @@ function MaintenanceCard({ userId }: { userId: string }) {
   const penalty = paid ? 0 : penaltyForToday();
   const total = (paid ? 0 : amount) + past + penalty;
 
+  const openPay = async () => {
+    setPayOpen(true);
+    const { data } = await supabase.from("society_settings").select("payment_qr_url").eq("id", 1).maybeSingle();
+    const path = (data?.payment_qr_url as string | null) ?? null;
+    if (!path) { setQrUrl(null); return; }
+    const { data: signed } = await supabase.storage.from("society-docs").createSignedUrl(path, 3600);
+    setQrUrl(signed?.signedUrl ?? null);
+  };
+
   return (
+    <>
     <Card className="p-6 border-0 shadow-[var(--shadow-elevated)] text-primary-foreground relative overflow-hidden"
       style={{ background: total === 0 ? "linear-gradient(135deg, oklch(0.55 0.18 150), oklch(0.7 0.14 160))" : "var(--gradient-hero)" }}>
       <div className="flex items-start justify-between">
@@ -131,10 +144,29 @@ function MaintenanceCard({ userId }: { userId: string }) {
             {penalty > 0 && <span>{t("penalty")}: ₹{penalty.toLocaleString()}</span>}
             <span className="opacity-80">{t("billingDate")} · {t("dueDate")}</span>
           </div>
+          {total > 0 && (
+            <Button onClick={openPay} className="mt-4 bg-white text-primary hover:bg-white/90">
+              <QrCode className="size-4 mr-1" /> Pay Now
+            </Button>
+          )}
         </div>
         <Badge className={total === 0 ? "bg-white text-success" : "bg-white text-destructive"}>{total === 0 ? t("cleared") : t("due")}</Badge>
       </div>
     </Card>
+    <Dialog open={payOpen} onOpenChange={setPayOpen}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader><DialogTitle className="text-center">Scan to Pay Maintenance</DialogTitle></DialogHeader>
+        <div className="flex flex-col items-center gap-3 py-2">
+          {qrUrl ? (
+            <img src={qrUrl} alt="Payment QR code" className="w-64 h-64 object-contain rounded-lg border bg-white p-2" />
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-12">No payment QR uploaded by admin yet.</p>
+          )}
+          <p className="text-sm font-semibold">Amount Due: ₹{total.toLocaleString()}</p>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
