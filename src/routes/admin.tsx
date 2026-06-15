@@ -90,6 +90,35 @@ function UsersTab() {
   const [allRecords, setAllRecords] = useState<MaintenanceRecord[]>([]);
   const [selected, setSelected] = useState<Profile | null>(null);
   const penalty = penaltyForToday();
+  const [qrPath, setQrPath] = useState<string | null>(null);
+  const [qrPreview, setQrPreview] = useState<string | null>(null);
+  const [qrUploading, setQrUploading] = useState(false);
+
+  const loadQr = useCallback(async () => {
+    const { data } = await supabase.from("society_settings").select("payment_qr_url").eq("id", 1).maybeSingle();
+    const path = (data?.payment_qr_url as string | null) ?? null;
+    setQrPath(path);
+    if (path) {
+      const { data: signed } = await supabase.storage.from("society-docs").createSignedUrl(path, 3600);
+      setQrPreview(signed?.signedUrl ?? null);
+    } else {
+      setQrPreview(null);
+    }
+  }, []);
+  useEffect(() => { loadQr(); }, [loadQr]);
+
+  const uploadQr = async (file: File) => {
+    setQrUploading(true);
+    const ext = file.name.split(".").pop() || "png";
+    const path = `qr/payment-qr.${ext}`;
+    const { error: upErr } = await supabase.storage.from("society-docs").upload(path, file, { upsert: true, contentType: file.type });
+    if (upErr) { setQrUploading(false); return toast.error(upErr.message); }
+    const { error } = await supabase.from("society_settings").update({ payment_qr_url: path }).eq("id", 1);
+    setQrUploading(false);
+    if (error) return toast.error(error.message);
+    toast.success("Payment QR uploaded");
+    loadQr();
+  };
 
   const load = useCallback(async () => {
     const [{ data: ps }, { data: ms }] = await Promise.all([
@@ -156,6 +185,19 @@ function UsersTab() {
           <p className="text-xs text-muted-foreground ml-auto">
             {t("lateFeeToday")}: <span className="font-semibold text-foreground">₹{penalty}</span> (11–20 ₹100 · 21+ ₹250)
           </p>
+        </div>
+        <div className="mt-4 pt-4 border-t flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <Label>Upload Payment QR Code</Label>
+            <Input type="file" accept="image/*" className="w-64" disabled={qrUploading}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadQr(f); e.target.value = ""; }} />
+          </div>
+          {qrPreview && (
+            <div className="flex items-center gap-2">
+              <img src={qrPreview} alt="Payment QR" className="size-20 rounded border object-contain bg-white" />
+              <span className="text-xs text-muted-foreground">Current QR</span>
+            </div>
+          )}
         </div>
       </Card>
 
