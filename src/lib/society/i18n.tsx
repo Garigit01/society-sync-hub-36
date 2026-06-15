@@ -65,6 +65,40 @@ const EN = {
   due: "DUE",
 };
 
+const EXTRA_EN = {
+  flatAndTenants: "Flat & Tenants",
+  assignedByAdmin: "Assigned by your society admin.",
+  completed: "Completed",
+  overdue: "Overdue",
+  noComplaints: "You haven't filed any complaints yet.",
+  transparencySub: "Where this month's money is going.",
+  totalWithdrawn: "Total withdrawn",
+  noWithdrawals: "No withdrawals logged yet.",
+  perResident: "per resident",
+};
+const EXTRA_HI: typeof EXTRA_EN = {
+  flatAndTenants: "फ्लैट और किरायेदार",
+  assignedByAdmin: "आपके सोसाइटी एडमिन द्वारा सौंपा गया।",
+  completed: "पूरा हुआ",
+  overdue: "देर हो गई",
+  noComplaints: "आपने अभी तक कोई शिकायत दर्ज नहीं की है।",
+  transparencySub: "इस माह का पैसा कहाँ जा रहा है।",
+  totalWithdrawn: "कुल निकाला गया",
+  noWithdrawals: "अभी कोई निकासी दर्ज नहीं है।",
+  perResident: "प्रति निवासी",
+};
+const EXTRA_MR: typeof EXTRA_EN = {
+  flatAndTenants: "फ्लॅट व भाडेकरू",
+  assignedByAdmin: "तुमच्या सोसायटी ऍडमिनने सोपवले.",
+  completed: "पूर्ण झाले",
+  overdue: "उशीर झाला",
+  noComplaints: "तुम्ही अद्याप कोणतीही तक्रार नोंदवली नाही.",
+  transparencySub: "या महिन्याचे पैसे कुठे जात आहेत.",
+  totalWithdrawn: "एकूण काढले",
+  noWithdrawals: "अद्याप काही नोंद नाही.",
+  perResident: "प्रती रहिवासी",
+};
+
 const HI: typeof EN = {
   appName: "हार्मनी हाइट्स",
   signOut: "साइन आउट",
@@ -187,8 +221,12 @@ const MR: typeof EN = {
   due: "बाकी",
 };
 
-const STRINGS = { en: EN, hi: HI, mr: MR };
-export type TKey = keyof typeof EN;
+const STRINGS = {
+  en: { ...EN, ...EXTRA_EN },
+  hi: { ...HI, ...EXTRA_HI },
+  mr: { ...MR, ...EXTRA_MR },
+};
+export type TKey = keyof typeof EN | keyof typeof EXTRA_EN;
 
 const Ctx = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: (k: TKey) => string }>({
   lang: "en",
