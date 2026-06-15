@@ -12,6 +12,7 @@ import { useAuth } from "@/lib/society/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { currentMonth, todayISO, BASELINE_AMOUNT, penaltyForToday, type Profile, type MaintenanceRecord, type Complaint, type Duty, type Expense } from "@/lib/society/db";
 import { useT, monthLabel } from "@/lib/society/i18n";
+import { useUnreadComplaints, markSeen } from "@/lib/society/unread";
 import { CheckCircle2, AlertTriangle, Send, Home, ArrowRightLeft, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { DocumentsTab } from "./admin";
@@ -27,6 +28,8 @@ function ResidentPage() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [ready, setReady] = useState(false);
+  const [tab, setTab] = useState("home");
+  const unread = useUnreadComplaints(`resident-${user?.id ?? ""}`, user?.id);
 
   useEffect(() => {
     if (loading) return;
@@ -54,18 +57,23 @@ function ResidentPage() {
 
   return (
     <Shell title={`${t("welcomeBack")}, ${(profile.full_name ?? "Resident").split(" ")[0]}`} subtitle={`${t("flat")} ${profile.flat} · ${profile.occupancy}`}>
-      <Tabs defaultValue="home" className="space-y-6">
+      <Tabs value={tab} onValueChange={(v) => { setTab(v); if (v === "home") markSeen(`resident-${profile.id}`); }} className="space-y-6">
         <TabsList>
-          <TabsTrigger value="home">{t("home")}</TabsTrigger>
+          <TabsTrigger value="home" className="relative">
+            {t("home")}
+            {unread > 0 && tab !== "home" && (
+              <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-destructive ring-2 ring-background" aria-label={`${unread} unread`} />
+            )}
+          </TabsTrigger>
           <TabsTrigger value="docs">{t("tabDocs")}</TabsTrigger>
-          {profile.occupancy === "Owner" && <TabsTrigger value="flat">Flat & Tenants</TabsTrigger>}
+          {profile.occupancy === "Owner" && <TabsTrigger value="flat">{t("flatAndTenants")}</TabsTrigger>}
         </TabsList>
         <TabsContent value="home">
           <div className="grid lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               <MaintenanceCard userId={profile.id} />
               <DutyCard userId={profile.id} />
-              <ComplaintBox userId={profile.id} />
+              <ComplaintBox userId={profile.id} unread={unread} />
             </div>
             <div className="space-y-6">
               <BuildingFundCard />
@@ -197,7 +205,7 @@ function DutyCard({ userId }: { userId: string }) {
   return (
     <Card className="p-6 border-0 shadow-[var(--shadow-card)]">
       <h3 className="font-semibold text-lg">{t("todaysDuty")}</h3>
-      <p className="text-sm text-muted-foreground">Assigned by your society admin.</p>
+      <p className="text-sm text-muted-foreground">{t("assignedByAdmin")}</p>
       {duties.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">{t("noDuty")}</p>
       ) : (
@@ -210,13 +218,13 @@ function DutyCard({ userId }: { userId: string }) {
                 <p className="text-xs text-muted-foreground mt-0.5">{duty.date}</p>
                 {duty.done ? (
                   <div className="mt-3 flex items-center text-success text-sm">
-                    <CheckCircle2 className="size-4 mr-1" /> Completed {duty.done_at ? `at ${new Date(duty.done_at).toLocaleTimeString()}` : ""}
+                    <CheckCircle2 className="size-4 mr-1" /> {t("completed")} {duty.done_at ? `· ${new Date(duty.done_at).toLocaleTimeString()}` : ""}
                   </div>
                 ) : (
                   <div className="mt-3 flex items-center justify-between">
                     {overdue && (
                       <div className="flex items-center text-sm font-medium rounded-md px-3 py-2 bg-warning/20 text-warning-foreground">
-                        <AlertTriangle className="size-4 mr-1" /> Overdue
+                        <AlertTriangle className="size-4 mr-1" /> {t("overdue")}
                       </div>
                     )}
                     <Button onClick={() => markDone(duty.id)} className="ml-auto" style={{ background: "var(--gradient-primary)" }}>{t("markDone")}</Button>
@@ -231,7 +239,8 @@ function DutyCard({ userId }: { userId: string }) {
   );
 }
 
-function ComplaintBox({ userId }: { userId: string }) {
+function ComplaintBox({ userId, unread }: { userId: string; unread: number }) {
+  const { t } = useT();
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [text, setText] = useState("");
 
@@ -246,37 +255,46 @@ function ComplaintBox({ userId }: { userId: string }) {
   }, [userId, load]);
 
   const submit = async () => {
-    if (!text.trim()) return toast.error("Please describe your complaint");
+    if (!text.trim()) return toast.error(t("describeIssue"));
     const { error } = await supabase.from("complaints").insert({ user_id: userId, description: text.trim() });
     if (error) return toast.error(error.message);
     setText("");
-    toast.success("Complaint submitted");
+    toast.success(t("submitComplaint"));
   };
 
   return (
     <Card className="p-6 border-0 shadow-[var(--shadow-card)]">
-      <h3 className="font-semibold text-lg">Digital complaint box</h3>
-      <p className="text-sm text-muted-foreground">Your feedback reaches the admin instantly.</p>
-      <Textarea className="mt-4" rows={3} placeholder="Describe the issue..." value={text} onChange={(e) => setText(e.target.value)} />
+      <div className="flex items-center gap-2">
+        <h3 className="font-semibold text-lg">{t("complaintBox")}</h3>
+        {unread > 0 && <span className="size-2.5 rounded-full bg-destructive" aria-label={`${unread} new`} />}
+      </div>
+      <p className="text-sm text-muted-foreground">{t("complaintHint")}</p>
+      <Textarea className="mt-4" rows={3} placeholder={t("describeIssue")} value={text} onChange={(e) => setText(e.target.value)} />
       <div className="flex justify-end mt-2">
-        <Button onClick={submit}><Send className="size-4 mr-1" /> Submit complaint</Button>
+        <Button onClick={submit}><Send className="size-4 mr-1" /> {t("submitComplaint")}</Button>
       </div>
       <div className="mt-6">
-        <h4 className="text-sm font-semibold mb-2">My past complaints</h4>
+        <h4 className="text-sm font-semibold mb-2">{t("pastComplaints")}</h4>
         {complaints.length === 0 ? (
-          <p className="text-sm text-muted-foreground">You haven't filed any complaints yet.</p>
+          <p className="text-sm text-muted-foreground">{t("noComplaints")}</p>
         ) : (
           <ol className="space-y-3 border-l-2 border-border pl-4">
-            {complaints.map((c) => (
+            {complaints.map((c) => {
+              const fresh = new Date(c.created_at).getTime() > Date.now() - 1000 * 60 * 60 * 24 * 2;
+              return (
               <li key={c.id} className="relative">
                 <span className="absolute -left-[21px] top-1.5 size-3 rounded-full bg-primary" />
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>{new Date(c.created_at).toLocaleString()}</span>
-                  <Badge variant="outline" className={c.status === "Solved" ? "border-success text-success" : c.status === "In-Progress" ? "border-warning text-warning-foreground" : ""}>{c.status}</Badge>
+                  <div className="flex items-center gap-1.5">
+                    {fresh && c.status !== "Solved" && <span className="size-2 rounded-full bg-destructive" />}
+                    <Badge variant="outline" className={c.status === "Solved" ? "border-success text-success" : c.status === "In-Progress" ? "border-warning text-warning-foreground" : ""}>{c.status}</Badge>
+                  </div>
                 </div>
                 <p className="text-sm mt-1">{c.description}</p>
               </li>
-            ))}
+              );
+            })}
           </ol>
         )}
       </div>
@@ -286,6 +304,7 @@ function ComplaintBox({ userId }: { userId: string }) {
 
 function TransparencyCard() {
   const month = currentMonth();
+  const { t } = useT();
   const [expenses, setExpenses] = useState<Expense[]>([]);
 
   useEffect(() => {
@@ -299,12 +318,12 @@ function TransparencyCard() {
 
   return (
     <Card className="p-6 border-0 shadow-[var(--shadow-card)]">
-      <h3 className="font-semibold text-lg">Society fund transparency</h3>
-      <p className="text-sm text-muted-foreground">Where this month's money is going.</p>
+      <h3 className="font-semibold text-lg">{t("transparency")}</h3>
+      <p className="text-sm text-muted-foreground">{t("transparencySub")}</p>
       <p className="text-3xl font-bold mt-4">₹{total.toLocaleString()}</p>
-      <p className="text-xs text-muted-foreground">Total withdrawn · {month}</p>
+      <p className="text-xs text-muted-foreground">{t("totalWithdrawn")} · {month}</p>
       <div className="mt-4 space-y-3">
-        {cats.length === 0 && <p className="text-sm text-muted-foreground">No withdrawals logged yet.</p>}
+        {cats.length === 0 && <p className="text-sm text-muted-foreground">{t("noWithdrawals")}</p>}
         {cats.map(([cat, amt]) => (
           <div key={cat}>
             <div className="flex justify-between text-sm"><span>{cat}</span><span className="font-medium">₹{amt.toLocaleString()}</span></div>
