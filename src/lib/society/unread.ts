@@ -25,14 +25,12 @@ export function useUnreadComplaints(scope: string, userId?: string) {
     let mounted = true;
     const load = async () => {
       const seen = getLastSeen(scope);
-      let q = supabase.from("complaints").select("created_at,updated_at", { count: "exact", head: false });
+      let q = supabase.from("complaints").select("created_at,status");
       if (userId) q = q.eq("user_id", userId);
       const { data } = await q;
       if (!mounted) return;
-      const n = (data ?? []).filter((r: { created_at: string; updated_at?: string | null }) => {
-        const t = new Date(r.updated_at ?? r.created_at).getTime();
-        return t > seen;
-      }).length;
+      const rows = (data ?? []) as Array<{ created_at: string }>;
+      const n = rows.filter((r) => new Date(r.created_at).getTime() > seen).length;
       setCount(n);
     };
     load();
