@@ -15,6 +15,7 @@ import { useAuth } from "@/lib/society/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { currentMonth, todayISO, penaltyForToday, type Profile, type MaintenanceRecord, type Complaint, type Expense, type Duty } from "@/lib/society/db";
 import { useT, monthLabel } from "@/lib/society/i18n";
+import { useUnreadComplaints, markSeen } from "@/lib/society/unread";
 import { Download, Send, X, Upload, Trash2, MessageSquare, Save, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RTooltip, BarChart, Bar, XAxis, YAxis, Legend } from "recharts";
@@ -28,6 +29,8 @@ function AdminPage() {
   const { user, role, loading } = useAuth();
   const { t } = useT();
   const navigate = useNavigate();
+  const [tab, setTab] = useState("users");
+  const unread = useUnreadComplaints("admin");
   useEffect(() => {
     if (loading) return;
     if (!user) navigate({ to: "/" });
@@ -37,11 +40,18 @@ function AdminPage() {
   if (role !== "admin") return null;
   return (
     <Shell title={t("adminDashboard")} subtitle={t("adminSubtitle")}>
-      <Tabs defaultValue="users" className="space-y-6">
+      <Tabs value={tab} onValueChange={(v) => { setTab(v); if (v === "complaints") markSeen("admin"); }} className="space-y-6">
         <TabsList className="grid grid-cols-3 sm:grid-cols-5 w-full">
           <TabsTrigger value="users">{t("tabPayments")}</TabsTrigger>
           <TabsTrigger value="funds">{t("tabFunds")}</TabsTrigger>
-          <TabsTrigger value="complaints">{t("tabComplaints")}</TabsTrigger>
+          <TabsTrigger value="complaints" className="relative">
+            {t("tabComplaints")}
+            {unread > 0 && tab !== "complaints" && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 grid place-items-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold ring-2 ring-background">
+                {unread > 9 ? "9+" : unread}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="docs">{t("tabDocs")}</TabsTrigger>
           <TabsTrigger value="broadcast">{t("tabBroadcast")}</TabsTrigger>
         </TabsList>
