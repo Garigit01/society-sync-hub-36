@@ -237,16 +237,19 @@ export type Database = {
         Row: {
           base_amount: number
           id: number
+          payment_qr_url: string | null
           updated_at: string
         }
         Insert: {
           base_amount?: number
           id?: number
+          payment_qr_url?: string | null
           updated_at?: string
         }
         Update: {
           base_amount?: number
           id?: number
+          payment_qr_url?: string | null
           updated_at?: string
         }
         Relationships: []

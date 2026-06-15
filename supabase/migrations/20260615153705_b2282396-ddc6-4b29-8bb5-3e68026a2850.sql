@@ -1,0 +1,1 @@
+ALTER TABLE public.society_settings ADD COLUMN IF NOT EXISTS payment_qr_url text;
