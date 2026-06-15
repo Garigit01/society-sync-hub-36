@@ -231,7 +231,7 @@ export type TKey = keyof typeof EN | keyof typeof EXTRA_EN;
 const Ctx = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: (k: TKey) => string }>({
   lang: "en",
   setLang: () => {},
-  t: (k) => EN[k],
+  t: (k) => (EN as Record<string, string>)[k as string] ?? String(k),
 });
 
 export function I18nProvider({ children }: { children: ReactNode }) {
